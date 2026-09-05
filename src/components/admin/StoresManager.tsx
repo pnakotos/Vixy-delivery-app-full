@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Store, 
   MapPin, 
@@ -6,7 +6,6 @@ import {
   Mail, 
   Star, 
   DollarSign, 
-  Receipt, 
   PackageCheck,
   Clock,
   CheckCircle2,
@@ -15,24 +14,33 @@ import {
   Calendar,
   Filter,
   Search,
-  Power
+  Power,
+  ChevronRight,
+  ExternalLink,
+  ShoppingBag
 } from 'lucide-react';
 import { useDelivery } from '../../context/DeliveryContext';
-import { Comercio, CategoriaPrincipalComercio } from '../../types/delivery';
+import { Comercio } from '../../types/delivery';
 
-const CATEGORIAS_FILTRO: { id: string; label: string; icon: string }[] = [
-  { id: 'todos', label: 'Todos los Comercios', icon: '🏪' },
-  { id: 'hogar', label: 'Hogar', icon: '🏠' },
-  { id: 'ferreteria', label: 'Ferretería', icon: '🔧' },
+interface RubroOption {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+const RUBROS_CATALOGO: RubroOption[] = [
+  { id: 'todos', label: 'Todos los Rubros', icon: '🏪' },
   { id: 'restaurantes', label: 'Restaurantes', icon: '🍽️' },
   { id: 'comida_rapida', label: 'Comida Rápida', icon: '⚡' },
-  { id: 'supermercados', label: 'Supermercados', icon: '🛒' }
+  { id: 'supermercados', label: 'Supermercados & Víveres', icon: '🛒' },
+  { id: 'ferreteria', label: 'Ferretería & Construcción', icon: '🔧' },
+  { id: 'hogar', label: 'Hogar & Bazar', icon: '🏠' }
 ];
 
 export const StoresManager: React.FC = () => {
-  const { stores, store, switchStore, updateStoreSchedule, toggleStoreActive, tasaBcv, orders } = useDelivery();
+  const { stores, updateStoreSchedule, toggleStoreActive, tasaBcv, orders } = useDelivery();
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('todos');
+  const [selectedRubro, setSelectedRubro] = useState<string>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingStore, setEditingStore] = useState<Comercio | null>(null);
 
@@ -74,38 +82,43 @@ export const StoresManager: React.FC = () => {
     );
   };
 
-  const filteredStores = stores.filter(s => {
-    const matchesCat = selectedCategory === 'todos' || s.categoriaPrincipal === selectedCategory;
-    const matchesSearch = s.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          s.categoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.rif.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
+  const filteredStores = useMemo(() => {
+    return stores.filter(s => {
+      const matchesRubro = selectedRubro === 'todos' || s.categoriaPrincipal === selectedRubro;
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || 
+        s.nombre.toLowerCase().includes(q) || 
+        s.categoria.toLowerCase().includes(q) ||
+        s.rif.toLowerCase().includes(q) ||
+        (s.direccion && s.direccion.toLowerCase().includes(q));
+      return matchesRubro && matchesSearch;
+    });
+  }, [stores, selectedRubro, searchTerm]);
 
   const activeStoresCount = stores.filter(s => s.activo !== false).length;
   const inactiveStoresCount = stores.filter(s => s.activo === false).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="p-5 bg-white dark:bg-neutral-850 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+    <div className="space-y-5">
+      {/* Header Info Banner */}
+      <div className="p-5 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              Control de Disponibilidad y Horarios Vixy
+              Vixy Store • Comercios Aliados
             </span>
-            <span className="text-xs text-neutral-400 font-mono">Tabla: comercios</span>
+            <span className="text-xs text-neutral-400 font-mono">Padrón de Comercios</span>
           </div>
           <h2 className="text-xl font-bold text-neutral-900 dark:text-white mt-1 flex items-center gap-2">
             <Store className="w-5 h-5 text-purple-600" />
-            Directorio de Comercios y Horarios de Atención
+            Directorio de Comercios por Lista y Rubro
           </h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Administración centralizada de aliados comerciales. Actualiza horarios de apertura/cierre y activa/desactiva comercios para evitar compras sin servicio.
+            Vista organizada en lista por rubro comercial seleccionable, gestión de horarios de atención y estado operativo.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>{activeStoresCount} Activos</span>
@@ -117,180 +130,214 @@ export const StoresManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1">
-          {CATEGORIAS_FILTRO.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 border ${
-                selectedCategory === cat.id
-                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                  : 'bg-white dark:bg-neutral-850 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300'
-              }`}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-            </button>
-          ))}
+      {/* Selectable Rubros and Search Control Bar */}
+      <div className="p-4 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-purple-600" />
+            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              Seleccionar Rubro:
+            </span>
+          </div>
+
+          {/* Real-time Search Box */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Buscar comercio, RIF o zona..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white outline-hidden focus:border-purple-500"
+            />
+          </div>
         </div>
 
-        {/* Search Box */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre, RIF o rubro..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-white dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs text-neutral-900 dark:text-white outline-hidden focus:border-purple-500"
-          />
+        {/* Rubro Selector Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          {RUBROS_CATALOGO.map(rubro => {
+            const isSelected = selectedRubro === rubro.id;
+            const countInRubro = rubro.id === 'todos' 
+              ? stores.length 
+              : stores.filter(s => s.categoriaPrincipal === rubro.id).length;
+
+            return (
+              <button
+                key={rubro.id}
+                onClick={() => setSelectedRubro(rubro.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-2 border ${
+                  isSelected
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                    : 'bg-neutral-50 dark:bg-neutral-800/80 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 hover:bg-neutral-100'
+                }`}
+              >
+                <span>{rubro.icon}</span>
+                <span>{rubro.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  isSelected ? 'bg-purple-700 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
+                }`}>
+                  {countInRubro}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Stores List Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredStores.map((item) => {
-          const storeOrders = orders.filter(o => o.comercio.id === item.id);
-          const totalFacturadoUsd = storeOrders.reduce((sum, o) => sum + o.montoSubtotalUsd, 0);
-          const isCurrentlyActive = item.activo !== false;
-
-          return (
-            <div 
-              key={item.id}
-              className={`bg-white dark:bg-neutral-850 rounded-2xl border transition shadow-xs p-5 space-y-4 ${
-                isCurrentlyActive 
-                  ? 'border-neutral-200 dark:border-neutral-800' 
-                  : 'border-neutral-300 dark:border-neutral-800/60 opacity-85 bg-neutral-50/50 dark:bg-neutral-900/50'
-              }`}
+      {/* Stores List: Coherent Vertical Row Layout */}
+      <div className="space-y-3">
+        {filteredStores.length === 0 ? (
+          <div className="p-12 text-center bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-neutral-400 space-y-2">
+            <Store className="w-10 h-10 mx-auto text-neutral-300 dark:text-neutral-700" />
+            <p className="text-sm font-medium">No hay comercios registrados en el rubro seleccionado.</p>
+            <button 
+              onClick={() => { setSelectedRubro('todos'); setSearchTerm(''); }}
+              className="text-xs text-purple-600 hover:underline font-bold cursor-pointer"
             >
-              {/* Header Store */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={item.logoUrl}
-                    alt={item.nombre}
-                    className="w-12 h-12 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+              Restablecer filtros de rubro
+            </button>
+          </div>
+        ) : (
+          filteredStores.map((item) => {
+            const storeOrders = orders.filter(o => o.comercio.id === item.id);
+            const totalFacturadoUsd = storeOrders.reduce((sum, o) => sum + o.montoSubtotalUsd, 0);
+            const isCurrentlyActive = item.activo !== false;
+
+            return (
+              <div 
+                key={item.id}
+                className={`bg-white dark:bg-neutral-900 rounded-2xl border transition shadow-xs p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4 ${
+                  isCurrentlyActive 
+                    ? 'border-neutral-200 dark:border-neutral-800 hover:border-purple-300 dark:hover:border-purple-800/60' 
+                    : 'border-neutral-300 dark:border-neutral-800/60 opacity-80 bg-neutral-50/70 dark:bg-neutral-950/40'
+                }`}
+              >
+                {/* Store Identification Block */}
+                <div className="flex items-start sm:items-center gap-3 min-w-0 xl:w-5/12">
+                  <div className="relative shrink-0">
+                    <img
+                      src={item.logoUrl}
+                      alt={item.nombre}
+                      className="w-13 h-13 rounded-2xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-2xs"
+                    />
+                    <span 
+                      className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-neutral-900 ${
+                        isCurrentlyActive ? 'bg-emerald-500' : 'bg-neutral-400'
+                      }`}
+                      title={isCurrentlyActive ? 'Comercio Activo' : 'Comercio Pausado'}
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-white truncate">
                         {item.nombre}
                       </h3>
                       {isCurrentlyActive ? (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
                           Activo
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-[10px] font-bold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
-                          Inactivo / Cerrado
+                        <span className="px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-[10px] font-bold">
+                          Inactivo / En Pausa
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {item.categoria} • RIF: {item.rif}
-                    </p>
-                    <div className="flex items-center gap-2 text-[10px] text-neutral-400 mt-0.5">
-                      <span className="flex items-center gap-1 text-amber-500 font-bold">
-                        <Star className="w-3 h-3 fill-current" />
-                        {item.calificacion}
+
+                    <div className="flex items-center gap-2 text-xs text-neutral-500 flex-wrap">
+                      <span className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-md font-medium text-neutral-600 dark:text-neutral-300">
+                        {item.categoria}
                       </span>
-                      <span>•</span>
-                      <span>{item.productos.length} artículos en menú</span>
+                      <span className="font-mono text-neutral-400">RIF: {item.rif}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-neutral-500 truncate">
+                      <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                      <span className="truncate">{item.direccion}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Direct Active Toggle */}
-                <button
-                  type="button"
-                  onClick={() => toggleStoreActive(item.id)}
-                  title={isCurrentlyActive ? 'Desactivar comercio' : 'Activar comercio'}
-                  className={`p-2 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs font-bold ${
-                    isCurrentlyActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-600 hover:bg-emerald-100'
-                      : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700'
-                  }`}
-                >
-                  <Power className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Schedule and Working Hours Box */}
-              <div className="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200/80 dark:border-neutral-800 text-xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-purple-600" />
-                    Horario de Atención Oficial
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => openScheduleModal(item)}
-                    className="text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 flex items-center gap-1 cursor-pointer transition hover:underline"
-                  >
-                    <Edit3 className="w-3 h-3" />
-                    <span>Modificar Horario</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-neutral-400 block text-[10px]">Apertura / Cierre:</span>
-                    <span className="font-bold text-neutral-800 dark:text-neutral-200 font-mono">
-                      {item.horaApertura || '08:00'} - {item.horaCierre || '22:00'}
+                {/* Operating Schedule & Service Parameters Block */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 py-2 xl:py-0 border-y xl:border-y-0 xl:border-x border-neutral-100 dark:border-neutral-800 xl:px-4 xl:w-4/12 text-xs">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-purple-600" />
+                      Horario
                     </span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-400 block text-[10px]">Días de Servicio:</span>
-                    <span className="font-bold text-neutral-800 dark:text-neutral-200 truncate block">
+                    <p className="font-bold text-neutral-800 dark:text-neutral-200 font-mono text-xs">
+                      {item.horaApertura || '08:00'} - {item.horaCierre || '22:00'}
+                    </p>
+                    <p className="text-[10px] text-neutral-500 truncate">
                       {item.diasOperacion && item.diasOperacion.length === 7 
                         ? 'Todos los días' 
                         : (item.diasOperacion?.join(', ') || 'Lunes a Domingo')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
+                      <ShoppingBag className="w-3 h-3 text-amber-500" />
+                      Catálogo
                     </span>
+                    <p className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      {item.productos.length} artículos
+                    </p>
+                    <p className="text-[10px] text-amber-500 font-bold flex items-center gap-0.5">
+                      <Star className="w-3 h-3 fill-current" />
+                      {item.calificacion} ({item.totalCalificaciones || 0})
+                    </p>
+                  </div>
+
+                  <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1">
+                      <DollarSign className="w-3 h-3 text-emerald-500" />
+                      Facturado
+                    </span>
+                    <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                      ${totalFacturadoUsd.toFixed(2)} USD
+                    </p>
+                    <p className="font-mono text-[10px] text-neutral-500">
+                      Bs. {(totalFacturadoUsd * tasaBcv).toFixed(0)}
+                    </p>
                   </div>
                 </div>
 
-                {/* Status Notice */}
-                {!isCurrentlyActive && (
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-1.5 rounded-lg">
-                    ⚠️ <strong>Comercio pausado:</strong> Los clientes en Vixy Pedidos verán este comercio inactivo y no podrán agregar productos al carrito.
-                  </p>
-                )}
-              </div>
+                {/* Actions Block: Modify Schedule and Toggle */}
+                <div className="flex items-center gap-2 shrink-0 xl:w-3/12 xl:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => openScheduleModal(item)}
+                    className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-neutral-200 dark:border-neutral-700"
+                    title="Configurar horario de apertura y días de servicio"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Modificar Horario</span>
+                  </button>
 
-              {/* Financial Stats & Location */}
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
-                  <span className="text-[9px] text-neutral-400 uppercase font-bold block">Ventas</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                    ${totalFacturadoUsd.toFixed(2)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
-                  <span className="text-[9px] text-neutral-400 uppercase font-bold block">En Bolívares</span>
-                  <span className="font-bold text-neutral-700 dark:text-neutral-300 font-mono">
-                    Bs. {(totalFacturadoUsd * tasaBcv).toFixed(0)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800">
-                  <span className="text-[9px] text-neutral-400 uppercase font-bold block">Tiempo Envío</span>
-                  <span className="font-bold text-neutral-700 dark:text-neutral-300">
-                    {item.tiempoEstimadoMin}-{item.tiempoEstimadoMax}m
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleStoreActive(item.id)}
+                    title={isCurrentlyActive ? 'Pausar o desactivar comercio' : 'Activar comercio'}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border ${
+                      isCurrentlyActive
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                        : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{isCurrentlyActive ? 'Activo' : 'Inactivo'}</span>
+                  </button>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Edit Schedule & Active Status Modal */}
       {editingStore && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white dark:bg-neutral-850 rounded-3xl border border-neutral-200 dark:border-neutral-700 max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
               <div>
@@ -318,8 +365,8 @@ export const StoresManager: React.FC = () => {
                   <span className="font-bold text-neutral-900 dark:text-white block">
                     Disponibilidad del Comercio
                   </span>
-                  <span className="text-[10px] text-neutral-400">
-                    Si está inactivo, el cliente no puede realizar pedidos.
+                  <span className="text-[11px] text-neutral-500">
+                    Determina si los clientes pueden ordenar en este local
                   </span>
                 </div>
                 <button
@@ -327,58 +374,61 @@ export const StoresManager: React.FC = () => {
                   onClick={() => setEditActivo(!editActivo)}
                   className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     editActivo
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400'
                   }`}
                 >
                   <Power className="w-3.5 h-3.5" />
-                  <span>{editActivo ? 'Activo' : 'Inactivo'}</span>
+                  <span>{editActivo ? 'Habilitado' : 'Pausado'}</span>
                 </button>
               </div>
 
               {/* Working Hours */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-neutral-500">Hora Apertura</label>
+                <div>
+                  <label className="block text-neutral-500 text-[11px] mb-1 font-semibold">
+                    Hora de Apertura
+                  </label>
                   <input
                     type="time"
-                    required
                     value={editHoraApertura}
                     onChange={(e) => setEditHoraApertura(e.target.value)}
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700 font-mono font-bold text-neutral-900 dark:text-white"
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white font-mono font-bold"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-neutral-500">Hora Cierre</label>
+                <div>
+                  <label className="block text-neutral-500 text-[11px] mb-1 font-semibold">
+                    Hora de Cierre
+                  </label>
                   <input
                     type="time"
-                    required
                     value={editHoraCierre}
                     onChange={(e) => setEditHoraCierre(e.target.value)}
-                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700 font-mono font-bold text-neutral-900 dark:text-white"
+                    className="w-full p-2.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white font-mono font-bold"
                   />
                 </div>
               </div>
 
               {/* Operating Days */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-neutral-500">Días de Operación Semanal</label>
-                <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="block text-neutral-500 text-[11px] mb-1.5 font-semibold">
+                  Días de Servicio Activo en la Semana
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {DIAS_SEMANA.map(dia => {
                     const isSelected = editDias.includes(dia);
                     return (
                       <button
-                        type="button"
                         key={dia}
+                        type="button"
                         onClick={() => toggleDia(dia)}
-                        className={`p-2 rounded-xl text-left font-bold transition cursor-pointer flex items-center justify-between border ${
+                        className={`p-2 rounded-xl text-[11px] font-bold transition text-center cursor-pointer border ${
                           isSelected
-                            ? 'bg-purple-500/10 border-purple-500/40 text-purple-600 dark:text-purple-400'
-                            : 'bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-400'
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300'
                         }`}
                       >
-                        <span>{dia}</span>
-                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {dia.slice(0, 3)}
                       </button>
                     );
                   })}
@@ -386,19 +436,19 @@ export const StoresManager: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-800">
                 <button
                   type="button"
                   onClick={() => setEditingStore(null)}
-                  className="w-1/2 py-2.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-neutral-700 dark:text-neutral-300 font-bold rounded-xl transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition cursor-pointer shadow-md"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold transition shadow-xs cursor-pointer"
                 >
-                  Guardar Cambios (MySQL)
+                  Guardar Horarios
                 </button>
               </div>
             </form>

@@ -1,9 +1,11 @@
 <?php
 /**
  * Vixy Delivery Platform - Conexión de Base de Datos y Helpers
- * Compatible con PHP 7.4+, 8.0, 8.1, 8.2, 8.3
+ * Compatible con cPanel, PHP 7.4+, 8.0, 8.1, 8.2, 8.3
  * UTF-8mb4, Prepared Statements y Manejo Seguro de Errores
  */
+
+require_once __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -20,11 +22,11 @@ class Database {
     private $pdo;
 
     private function __construct() {
-        $host = getenv('DB_HOST') ?: '127.0.0.1';
-        $port = getenv('DB_PORT') ?: '3306';
-        $dbname = getenv('DB_NAME') ?: 'vixy_platform_db';
-        $user = getenv('DB_USER') ?: 'root';
-        $pass = getenv('DB_PASS') ?: '';
+        $host = DB_HOST;
+        $port = DB_PORT;
+        $dbname = DB_NAME;
+        $user = DB_USER;
+        $pass = DB_PASS;
 
         $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
         $options = [
@@ -39,7 +41,7 @@ class Database {
         } catch (PDOException $e) {
             self::jsonResponse([
                 'error' => true,
-                'mensaje' => 'Error de conexión con la base de datos MySQL',
+                'mensaje' => 'Error de conexión con la base de datos MySQL en cPanel',
                 'detalle' => $e->getMessage()
             ], 500);
             exit();

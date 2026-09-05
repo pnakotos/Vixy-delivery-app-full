@@ -162,6 +162,7 @@ interface DeliveryContextType {
   verifyPayment: (orderId: string) => void;
   startPreparing: (orderId: string) => void;
   readyForPickup: (orderId: string) => void;
+  assignDriverToOrder: (orderId: string, driverId: string) => void;
   driverAcceptOrder: (orderId: string) => void;
   driverRejectOrder: (orderId: string, motivo?: string) => void;
   driverPickUpOrder: (orderId: string) => void;
@@ -179,6 +180,9 @@ interface DeliveryContextType {
   chatModal: { isOpen: boolean; orderId: string };
   openChat: (orderId: string) => void;
   closeChat: () => void;
+  // Maps Open Source (CARTO & OSM) Backend Managed API Key
+  cartoApiKey: string;
+  setCartoApiKey: (key: string) => void;
   // Real GPS Telemetry & Push Notifications
   realGpsActive: boolean;
   realGpsCoords: {
@@ -228,6 +232,23 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [adminIsLoggedIn, setAdminIsLoggedIn] = useState<boolean>(true);
   const [activityLogs, setActivityLogs] = useState<LogActividad[]>(INITIAL_ACTIVITY_LOGS);
   const [deliveryRates, setDeliveryRates] = useState<TarifasDeliveryConfig>(INITIAL_TARIFAS_CONFIG);
+  const [cartoApiKey, setCartoApiKeyState] = useState<string>(() => {
+    try {
+      return localStorage.getItem('vixy_carto_api_key') || (import.meta as any).env?.VITE_CARTO_API_KEY || '';
+    } catch {
+      return (import.meta as any).env?.VITE_CARTO_API_KEY || '';
+    }
+  });
+
+  const handleSetCartoApiKey = (newKey: string) => {
+    const trimmed = newKey.trim();
+    setCartoApiKeyState(trimmed);
+    try {
+      localStorage.setItem('vixy_carto_api_key', trimmed);
+    } catch (e) {
+      console.warn('Error saving CARTO API key to localStorage', e);
+    }
+  };
 
   const handleSetTasaBcv = (newVal: number) => {
     setTasaBcv(newVal);
@@ -1081,7 +1102,7 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       usuarioRol: currentAdminUser.nivelAcceso,
       modulo: 'tarifas',
       accion: 'Modificación de Tarifas y Comisión de Delivery',
-      detalles: `Comisión delivery: ${newRates.porcentajeComisionDelivery ?? deliveryRates.porcentajeComisionDelivery}% (no afecta precios de comercios). Tarifa base 3km: $${newRates.tarifaBaseMinimaUsd ?? deliveryRates.tarifaBaseMinimaUsd}. Fracción 0.5km: $${newRates.costoPorFraccionUsd ?? deliveryRates.costoPorFraccionUsd}.`,
+      detalles: `Comisión delivery: ${newRates.porcentajeComisionDelivery ?? deliveryRates.porcentajeComisionDelivery}% (no afecta precios de comercios). Tarifa mínima 3km: $${newRates.tarifaBaseMinimaUsd ?? deliveryRates.tarifaBaseMinimaUsd}. Costo por km adicional: $${newRates.costoPorFraccionUsd ?? deliveryRates.costoPorFraccionUsd}.`,
       ip: '190.202.88.14 (Caracas, CANTV)',
       severidad: 'exito'
     });
@@ -1089,17 +1110,16 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const calculateDeliveryTripCost = (distanciaKm: number) => {
     const safeKm = typeof distanciaKm === 'number' && !isNaN(distanciaKm) && distanciaKm > 0 ? distanciaKm : 3.0;
-    const dist = Math.max(0.5, safeKm);
-    const baseDist = deliveryRates?.distanciaBaseKm ?? 3.0; // 3.0 km
-    const tarifaBase = deliveryRates?.tarifaBaseMinimaUsd ?? 2.0; // ej $2.00
-    const fraccionKm = deliveryRates?.fraccionCalculoKm ?? 0.5; // 0.5 km
-    const costoFraccion = deliveryRates?.costoPorFraccionUsd ?? 0.35; // $0.35
-    const comisionPct = deliveryRates?.porcentajeComisionDelivery ?? 10;
+    const dist = Math.max(0.1, parseFloat(safeKm.toFixed(2)));
+    const baseDist = deliveryRates?.distanciaBaseKm ?? 3.0; // 3.0 km incluidos en tarifa mínima
+    const tarifaMinima = deliveryRates?.tarifaBaseMinimaUsd ?? 2.0; // Tarifa mínima $2.00 USD
+    const costoPorKmExtra = deliveryRates?.costoPorFraccionUsd ?? 0.50; // $0.50 USD por cada km adicional después de los 3 km
+    const comisionPct = deliveryRates?.porcentajeComisionDelivery ?? 12;
 
-    const distanciaExcedenteKm = Math.max(0, dist - baseDist);
-    const fraccionesAdicionales = distanciaExcedenteKm > 0 ? Math.ceil(distanciaExcedenteKm / fraccionKm) : 0;
-    const costoAdicionalUsd = fraccionesAdicionales * costoFraccion;
-    const totalViajeUsd = parseFloat((tarifaBase + costoAdicionalUsd).toFixed(2));
+    // Regla de Tarificación: $2.00 mínimo hasta 3 km. A partir del km 3, $0.50 por cada km de recorrido
+    const distanciaExcedenteKm = Math.max(0, parseFloat((dist - baseDist).toFixed(2)));
+    const costoAdicionalUsd = parseFloat((distanciaExcedenteKm * costoPorKmExtra).toFixed(2));
+    const totalViajeUsd = parseFloat((tarifaMinima + costoAdicionalUsd).toFixed(2));
     const totalViajeBs = parseFloat((totalViajeUsd * tasaBcv).toFixed(2));
 
     const comisionPlataformaUsd = parseFloat(((totalViajeUsd * comisionPct) / 100).toFixed(2));
@@ -1107,10 +1127,10 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     return {
       distanciaKm: dist,
-      tarifaBaseUsd: tarifaBase,
+      tarifaBaseUsd: tarifaMinima,
       distanciaBaseKm: baseDist,
       distanciaExcedenteKm,
-      fraccionesAdicionales,
+      fraccionesAdicionales: distanciaExcedenteKm,
       costoAdicionalUsd,
       totalViajeUsd,
       totalViajeBs,
@@ -2007,6 +2027,49 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
+  const assignDriverToOrder = (orderId: string, driverId: string) => {
+    const selectedDriver = allDrivers.find(d => d.id === driverId) || driver;
+    const timeStr = new Date().toTimeString().split(' ')[0];
+    let targetCod = orderId;
+    let comercioNombre = 'el comercio';
+
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        targetCod = o.codigoSeguimiento || orderId;
+        comercioNombre = o.comercio?.nombre || 'el comercio';
+        return {
+          ...o,
+          conductor: selectedDriver,
+          estado: 'en_camino_al_comercio',
+          historialOperaciones: [
+            ...o.historialOperaciones,
+            {
+              id: 'hist-' + Date.now(),
+              estado: 'en_camino_al_comercio',
+              descripcion: `Mesa operativa asignó al motorizado ${selectedDriver.nombre} ${selectedDriver.apellido} (${selectedDriver.moto.marca} ${selectedDriver.moto.placa}). Motorizado notificado para retiro en ${comercioNombre}.`,
+              actor: 'administrador',
+              timestamp: timeStr
+            }
+          ]
+        };
+      }
+      return o;
+    }));
+
+    addNotification('conductor', '🛵 Nuevo Servicio Asignado por Mesa Operativa', `Has sido asignado a la orden #${targetCod}. Dirígete a ${comercioNombre} para el retiro.`);
+    addNotification('web', '✅ Motorizado Asignado', `Se asignó a ${selectedDriver.nombre} (${selectedDriver.moto.placa}) a la orden #${targetCod}.`);
+    addActivityLog({
+      usuarioId: currentAdminUser.id,
+      usuarioNombre: currentAdminUser.nombre,
+      usuarioRol: 'admin',
+      modulo: 'pedidos',
+      accion: 'Asignación de Motorizado',
+      detalles: `Mesa operativa asignó a ${selectedDriver.nombre} ${selectedDriver.apellido} (${selectedDriver.moto.placa}) al servicio #${targetCod}.`,
+      ip: '190.202.89.12 (CANTV ABA)',
+      severidad: 'info'
+    });
+  };
+
   const driverRejectOrder = (orderId: string, motivo: string = 'Distancia no conveniente') => {
     const timeStr = new Date().toTimeString().split(' ')[0];
     setOrders(prev => prev.map(o => {
@@ -2413,6 +2476,7 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       verifyPayment,
       startPreparing,
       readyForPickup,
+      assignDriverToOrder,
       driverAcceptOrder,
       driverRejectOrder,
       driverPickUpOrder,
@@ -2429,6 +2493,8 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       chatModal,
       openChat,
       closeChat,
+      cartoApiKey,
+      setCartoApiKey: handleSetCartoApiKey,
       realGpsActive,
       realGpsCoords,
       realGpsError,

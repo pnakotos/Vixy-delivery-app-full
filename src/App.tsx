@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, 
   Bike, 
@@ -6,29 +6,83 @@ import {
   LayoutDashboard, 
   Layers, 
   RefreshCw, 
-  Sparkles,
-  Smartphone,
-  Globe,
-  Database
+  Compass,
+  ArrowLeft
 } from 'lucide-react';
 import { DeliveryProvider, useDelivery } from './context/DeliveryContext';
 import { ClientApp } from './components/apps/ClientApp';
 import { DriverApp } from './components/apps/DriverApp';
 import { StoreApp } from './components/apps/StoreApp';
 import { AdminPanel } from './components/apps/AdminPanel';
+import { LiveFleetMapView } from './components/common/LiveFleetMapView';
 import { PhoneFrame } from './components/common/PhoneFrame';
-import { SimulatedCallModal } from './components/common/SimulatedCallModal';
+import { CallModal } from './components/common/CallModal';
 import { LiveChatDrawer } from './components/common/LiveChatDrawer';
 import { PushNotificationToast } from './components/common/PushNotificationToast';
 
-type ViewMode = 'split' | 'cliente' | 'driver' | 'store' | 'admin';
+type ViewMode = 'split' | 'cliente' | 'driver' | 'store' | 'admin' | 'mapa';
 
 const MainAppContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [standalone, setStandalone] = useState<string | null>(null);
   const { tasaBcv, resetDemo, orders, client } = useDelivery();
 
-  const activeOrdersCount = orders.filter(o => o.estado !== 'entregado' && o.estado !== 'cancelado').length;
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const appParam = params.get('app') || (import.meta.env.VITE_APP_MODE as string | undefined);
+      if (appParam) {
+        setStandalone(appParam.toLowerCase());
+      }
+    }
+  }, []);
 
+  // --- MODO APLICACIÓN INDEPENDIENTE / APK NATIVO ---
+  if (standalone === 'conductor' || standalone === 'driver') {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-neutral-900 flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <DriverApp />
+        </div>
+        <CallModal />
+      </div>
+    );
+  }
+
+  if (standalone === 'cliente' || standalone === 'client') {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-neutral-900 flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <ClientApp />
+        </div>
+        <CallModal />
+        <PushNotificationToast />
+        <LiveChatDrawer currentRole="cliente" senderName={`${client.nombre} ${client.apellido}`} />
+      </div>
+    );
+  }
+
+  if (standalone === 'comercio' || standalone === 'store') {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-neutral-900 flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <StoreApp />
+        </div>
+        <CallModal />
+      </div>
+    );
+  }
+
+  if (standalone === 'admin') {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-[#F1F5F9] dark:bg-slate-950 flex flex-col">
+        <AdminPanel />
+        <CallModal />
+      </div>
+    );
+  }
+
+  // --- MODO ECOSISTEMA VIXY (VISTA PREVIA Y DESARROLLO) ---
   return (
     <div className="flex flex-col h-screen w-screen bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans select-none overflow-hidden">
       {/* Top Global Bento Ecosystem Suite Navigation Bar */}
@@ -49,7 +103,7 @@ const MainAppContent: React.FC = () => {
               </span>
             </div>
             <p className="text-[10px] text-neutral-400 uppercase tracking-widest hidden sm:block">
-              Centralized Bento Grid Ecosystem v2.1
+              Superusuario: <strong className="text-amber-400 font-mono">vixydely</strong> / <span className="font-mono">123456</span>
             </p>
           </div>
         </div>
@@ -116,6 +170,21 @@ const MainAppContent: React.FC = () => {
           >
             <LayoutDashboard className="w-3.5 h-3.5 text-purple-300" />
             <span>Panel Web</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('mapa')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              viewMode === 'mapa'
+                ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title="Ver mapa satelital en vivo con todos los motorizados"
+          >
+            <Compass className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Mapa de Conductores</span>
+            <span className="sm:hidden">Conductores</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
           </button>
         </div>
 
@@ -237,11 +306,18 @@ const MainAppContent: React.FC = () => {
             <AdminPanel />
           </div>
         )}
+
+        {/* MODE 6: LIVE FLEET GPS MAP FULL SCREEN */}
+        {viewMode === 'mapa' && (
+          <div className="flex-1 overflow-hidden bg-slate-950">
+            <LiveFleetMapView />
+          </div>
+        )}
       </div>
 
       {/* Global Modals & Notifications */}
       <PushNotificationToast />
-      <SimulatedCallModal />
+      <CallModal />
       <LiveChatDrawer currentRole="cliente" senderName={`${client.nombre} ${client.apellido}`} />
     </div>
   );

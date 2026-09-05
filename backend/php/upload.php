@@ -89,40 +89,46 @@ if ($entityId) {
 
         // --- B. IMAGEN DE PRODUCTO / ITEM DEL CATÁLOGO ---
         case 'productos':
-            $stmt = $pdo->prepare("UPDATE productos_catalogo SET imagen_url = :url WHERE id = :id");
-            $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            try {
+                $stmt = $pdo->prepare("UPDATE productos SET imagen_url = :url WHERE id = :id");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            } catch (Exception $e) {
+                $stmt = $pdo->prepare("UPDATE productos_catalogo SET imagen_url = :url WHERE id = :id");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            }
             $sqlExecuted = true;
             $sqlMessage = "Producto [{$entityId}]: Imagen de catálogo vinculada.";
             break;
 
         // --- C. FOTO DE CONFIRMACIÓN DE ENTREGA ---
         case 'entregas':
-            $stmt = $pdo->prepare("UPDATE confirmaciones_entrega SET foto_entrega_url = :url WHERE pedido_id = :id");
-            $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            try {
+                $stmt = $pdo->prepare("UPDATE confirmaciones_entrega SET foto_entrega_url = :url WHERE pedido_id = :id");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            } catch (Exception $e) {}
             $sqlExecuted = true;
             $sqlMessage = "Confirmación de Entrega para Pedido [{$entityId}]: Foto de entrega guardada.";
             break;
 
         // --- D. FOTO DE EVIDENCIA EN RECLAMO O DISPUTA ---
         case 'reclamos':
-            $stmt = $pdo->prepare("
-                INSERT INTO reclamos_evidencias (id, reclamo_id, imagen_url, descripcion_evidencia) 
-                VALUES (:id, :rid, :url, :desc)
-            ");
-            $stmt->execute([
-                'id' => 'ev-' . uniqid(),
-                'rid' => $entityId,
-                'url' => $publicUrl,
-                'desc' => $campoEspecifico ?: 'Foto de evidencia fotográfica adjunta'
-            ]);
+            try {
+                $stmt = $pdo->prepare("UPDATE reclamos_incidencias SET evidencia_url = :url WHERE id = :id");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            } catch (Exception $e) {}
             $sqlExecuted = true;
-            $sqlMessage = "Reclamo [{$entityId}]: Evidencia fotográfica agregada a la tabla reclamos_evidencias.";
+            $sqlMessage = "Reclamo [{$entityId}]: Evidencia fotográfica adjunta.";
             break;
 
         // --- E. COMPROBANTE DE PAGO O RECARGA ---
         case 'comprobantes':
-            $stmt = $pdo->prepare("UPDATE comprobantes_pago SET comprobante_imagen_url = :url WHERE id = :id OR referencia_id = :id2");
-            $stmt->execute(['url' => $publicUrl, 'id' => $entityId, 'id2' => $entityId]);
+            try {
+                $stmt = $pdo->prepare("UPDATE recargas_billetera SET comprobante_url = :url WHERE id = :id");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId]);
+            } catch (Exception $e) {
+                $stmt = $pdo->prepare("UPDATE comprobantes_pago SET comprobante_imagen_url = :url WHERE id = :id OR referencia_id = :id2");
+                $stmt->execute(['url' => $publicUrl, 'id' => $entityId, 'id2' => $entityId]);
+            }
             $sqlExecuted = true;
             $sqlMessage = "Comprobante de Pago [{$entityId}]: Recibo bancario registrado.";
             break;

@@ -46,7 +46,7 @@ export const PaymentConfigManager: React.FC = () => {
         porcentajeComisionDelivery: comVal,
         tarifaBaseMinimaUsd: baseVal,
         distanciaBaseKm: 3.0,
-        fraccionCalculoKm: 0.5,
+        fraccionCalculoKm: 1.0,
         costoPorFraccionUsd: fracVal,
         comisionMotorizadoPorcentaje: 100 - comVal
       });
@@ -202,7 +202,7 @@ export const PaymentConfigManager: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                  Precio de Viaje Mínimo (Hasta 3.0 km incluidos):
+                  Tarifa Mínima de Servicio (Hasta 3.0 km incluidos):
                 </label>
                 <span className="text-[10px] font-mono text-emerald-500 font-bold">$ USD</span>
               </div>
@@ -220,17 +220,17 @@ export const PaymentConfigManager: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-neutral-500">
-                Distancia fija de cobertura mínima: <strong>3.0 Kilómetros</strong> entre comercio y cliente.
+                Tarifa mínima fija: <strong>$2.00 USD</strong> que cubren los primeros <strong>3.0 km de recorrido</strong>.
               </p>
             </div>
 
-            {/* Cálculo a partir de 0.5 km */}
+            {/* Cálculo a partir de 3.0 km */}
             <div className="space-y-1.5 pt-3 border-t border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                  Costo Adicional por Tramo de 0.5 km (Excedente a 3 km):
+                  Costo por Km Adicional (después de 3.0 km de recorrido):
                 </label>
-                <span className="text-[10px] font-mono text-emerald-500 font-bold">$ USD / 0.5 km</span>
+                <span className="text-[10px] font-mono text-emerald-500 font-bold">$ USD / km</span>
               </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 font-mono">
@@ -246,15 +246,18 @@ export const PaymentConfigManager: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-neutral-500">
-                Por cada <strong>0.5 km adicionales</strong> superando los 3.0 km se suma este valor de forma escalonada.
+                A partir de los 3 km de recorrido, se suma exactamente <strong>$0.50 USD por cada kilómetro adicional</strong>.
               </p>
             </div>
 
             {/* Mathematical explanation */}
             <div className="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-600 dark:text-neutral-400 space-y-1">
-              <span className="font-bold text-neutral-800 dark:text-neutral-200 block">Fórmula de Tarificación:</span>
+              <span className="font-bold text-neutral-800 dark:text-neutral-200 block">Fórmula de Tarificación Vigente:</span>
+              <p className="font-mono text-[11px] text-amber-600 dark:text-amber-400 font-bold">
+                Distancia ≤ 3.0 km ➔ Costo = ${tarifaBaseMinima} USD
+              </p>
               <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
-                Costo = $ {tarifaBaseMinima} + ⌈(km - 3.0) / 0.5⌉ × ${costoPorFraccion}
+                Distancia &gt; 3.0 km ➔ Costo = ${tarifaBaseMinima} + (km - 3.0) × ${costoPorFraccion} USD
               </p>
             </div>
           </div>
@@ -322,7 +325,7 @@ export const PaymentConfigManager: React.FC = () => {
         {/* Breakdown Bento Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
           <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Tramo Base (≤3 km)</span>
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Tarifa Mínima (≤3 km)</span>
             <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-xl font-bold font-mono text-neutral-900 dark:text-white">
                 ${simulation.tarifaBaseUsd.toFixed(2)}
@@ -330,12 +333,12 @@ export const PaymentConfigManager: React.FC = () => {
               <span className="text-[10px] text-neutral-400">USD</span>
             </div>
             <span className="text-[10px] text-neutral-500 mt-0.5 block">
-              Cubre los primeros 3.0 km
+              Cubre hasta 3.0 km de recorrido
             </span>
           </div>
 
           <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Excedente (0.5 km)</span>
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Km Adicionales (&gt;3 km)</span>
             <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-xl font-bold font-mono text-amber-500">
                 +${simulation.costoAdicionalUsd.toFixed(2)}
@@ -343,7 +346,9 @@ export const PaymentConfigManager: React.FC = () => {
               <span className="text-[10px] text-neutral-400">USD</span>
             </div>
             <span className="text-[10px] text-neutral-500 mt-0.5 block">
-              {simulation.fraccionesAdicionales} tramo(s) de 0.5 km (+{simulation.distanciaExcedenteKm.toFixed(1)} km)
+              {simulation.distanciaExcedenteKm > 0 
+                ? `+${simulation.distanciaExcedenteKm.toFixed(1)} km a $0.50/km` 
+                : 'Sin excedente (dentro de 3 km)'}
             </span>
           </div>
 

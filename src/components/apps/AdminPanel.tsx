@@ -17,7 +17,8 @@ import {
   ChevronDown,
   Wallet,
   Database,
-  MessageSquare
+  MessageSquare,
+  Compass
 } from 'lucide-react';
 import { AdminDashboard } from '../admin/AdminDashboard';
 import { OrdersManager } from '../admin/OrdersManager';
@@ -33,6 +34,7 @@ import { ActivityLogsManager } from '../admin/ActivityLogsManager';
 import { RechargesManager } from '../admin/RechargesManager';
 import { GlobalWalletsManager } from '../admin/GlobalWalletsManager';
 import { ClaimsManager } from '../admin/ClaimsManager';
+import { LiveFleetMapView } from '../common/LiveFleetMapView';
 import { useDelivery } from '../../context/DeliveryContext';
 
 export const AdminPanel: React.FC = () => {
@@ -48,7 +50,8 @@ export const AdminPanel: React.FC = () => {
     loginAdmin, 
     logoutAdmin, 
     changeAdminPassword,
-    activityLogs 
+    activityLogs,
+    allDrivers
   } = useDelivery();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -69,15 +72,15 @@ export const AdminPanel: React.FC = () => {
 
   const allMenuItems = [
     { id: 'dashboard', label: 'Dashboard & Radar', icon: LayoutDashboard },
-    { id: 'recargas', label: 'Autorización Recargas', icon: Wallet, badge: pendingRechargesCount, badgeColor: 'bg-purple-600' },
+    { id: 'mapa_conductores', label: 'Mapa de Conductores', icon: Compass, badge: allDrivers.length, badgeColor: 'bg-emerald-600' },
+    { id: 'recargas', label: 'Autorización Recarga & Vault', icon: Wallet, badge: pendingRechargesCount, badgeColor: 'bg-purple-600' },
     { id: 'custodia', label: 'Custodia & Wallets', icon: Database },
     { id: 'reclamos', label: 'Reclamos y Quejas', icon: MessageSquare, badge: pendingClaimsCount, badgeColor: 'bg-purple-600' },
     { id: 'pedidos', label: 'Gestión de Pedidos', icon: ShoppingBag, badge: activeOrdersCount },
-    { id: 'conductores', label: 'Padrón Motorizados (VE)', icon: Bike },
-    { id: 'comercios', label: 'Comercios (Vixy Store)', icon: Store },
+    { id: 'conductores', label: 'Conductores (Carnet Vixy)', icon: Bike },
+    { id: 'comercios', label: 'Comercios (Lista & Rubros)', icon: Store },
     { id: 'incidencias', label: 'Incidencias en Ruta', icon: AlertTriangle, badge: unresolvedIncidentsCount, badgeColor: 'bg-red-500' },
     { id: 'soporte', label: 'Mesa de Soporte en Vivo', icon: Headphones },
-    { id: 'verificaciones', label: 'Galería de Entregas', icon: FolderCheck },
     { id: 'pagos', label: 'Tasa BCV & Tarifas', icon: DollarSign },
     { id: 'logs', label: 'Log de Actividades', icon: ShieldCheck, badge: activityLogs.length, badgeColor: 'bg-purple-700' },
     { id: 'usuarios_web', label: 'Usuarios Web & RBAC', icon: Users, badge: adminUsers.length, badgeColor: 'bg-purple-900' },
@@ -86,12 +89,15 @@ export const AdminPanel: React.FC = () => {
 
   // Filter tabs dynamically based on user's permitted tabs in MySQL
   const allowedMenuItems = allMenuItems.filter(item => 
-    currentAdminUser.pestanasPermitidas.includes(item.id)
+    currentAdminUser.pestanasPermitidas.includes(item.id) ||
+    (item.id === 'mapa_conductores' && currentAdminUser.pestanasPermitidas.includes('mapa_flota'))
   );
 
   // If current active tab is not allowed for the switched user, fallback to the first allowed tab
   useEffect(() => {
-    if (!currentAdminUser.pestanasPermitidas.includes(activeTab)) {
+    const isAllowed = currentAdminUser.pestanasPermitidas.includes(activeTab) ||
+      (activeTab === 'mapa_conductores' && currentAdminUser.pestanasPermitidas.includes('mapa_flota'));
+    if (!isAllowed) {
       if (allowedMenuItems.length > 0) {
         setActiveTab(allowedMenuItems[0].id);
       }
@@ -464,6 +470,7 @@ export const AdminPanel: React.FC = () => {
         {/* Tab View Container */}
         <div className="flex-1 overflow-y-auto p-6 bg-neutral-100 dark:bg-neutral-950">
           {activeTab === 'dashboard' && <AdminDashboard onNavigateTab={setActiveTab} />}
+          {(activeTab === 'mapa_conductores' || activeTab === 'mapa_flota') && <LiveFleetMapView />}
           {activeTab === 'recargas' && <RechargesManager />}
           {activeTab === 'custodia' && <GlobalWalletsManager />}
           {activeTab === 'reclamos' && <ClaimsManager />}

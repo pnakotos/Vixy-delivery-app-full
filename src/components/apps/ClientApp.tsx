@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowLeft,
   Store,
   XCircle,
   ChefHat
@@ -37,6 +38,7 @@ import { MetodoPagoTipo } from '../../types/delivery';
 import { StoreInfoModal } from '../client/StoreInfoModal';
 import { ClientClaimsView } from '../client/ClientClaimsView';
 import { OrderDeliveryConfirmationCard } from '../client/OrderDeliveryConfirmationCard';
+import { OrderTrackingMap } from '../common/OrderTrackingMap';
 
 export const ClientApp: React.FC = () => {
   const { 
@@ -110,6 +112,8 @@ export const ClientApp: React.FC = () => {
 
   // ¿Qué quieres comprar hoy? Categorías de Vixy Pedidos
   const [selectedBuyCategory, setSelectedBuyCategory] = useState<string>('todos');
+  // Store navigation: null shows the store directory; a store id shows that store's available products
+  const [selectedStoreForView, setSelectedStoreForView] = useState<string | null>(null);
 
   // Find latest order for this client
   const clientOrders = orders.filter(o => o.cliente.id === client.id);
@@ -559,260 +563,327 @@ export const ClientApp: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {activeTab === 'menu' && (
           <>
-            {/* ¿Qué quieres comprar hoy? - Separación de Categorías requerida */}
-            <div className="p-3.5 bg-white dark:bg-neutral-850 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-3 shadow-2xs">
-              <div>
-                <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                  <span className="text-purple-600">🛍️</span> ¿Qué quieres comprar hoy?
-                </h3>
-                <p className="text-[11px] text-neutral-500">
-                  Explora por categoría y encuentra comercios con servicio disponible en tiempo real
-                </p>
-              </div>
+            {/* VIXY PEDIDOS - VISTA 1: DIRECTORIO DE TIENDAS (Cuando no se ha seleccionado tienda) */}
+            {!selectedStoreForView && (
+              <div className="space-y-3">
+                {/* ¿Qué quieres comprar hoy? - Selector de Categorías en carrusel móvil */}
+                <div className="p-3 bg-white dark:bg-neutral-850 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-2 shadow-xs">
+                  <div>
+                    <h3 className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                      <span className="text-purple-600">🛍️</span> ¿Qué quieres comprar hoy?
+                    </h3>
+                    <p className="text-[10px] text-neutral-500">
+                      Explora por categoría y elige una tienda para ver su catálogo
+                    </p>
+                  </div>
 
-              {/* Categorías Principales */}
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                {[
-                  { id: 'todos', label: 'Todos', icon: '🏪' },
-                  { id: 'hogar', label: 'Hogar', icon: '🏠' },
-                  { id: 'ferreteria', label: 'Ferretería', icon: '🔧' },
-                  { id: 'restaurantes', label: 'Restaurantes', icon: '🍽️' },
-                  { id: 'comida_rapida', label: 'Comida Rápida', icon: '⚡' },
-                  { id: 'supermercados', label: 'Supermercados', icon: '🛒' }
-                ].map(cat => {
-                  const isSelected = selectedBuyCategory === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSelectedBuyCategory(cat.id)}
-                      className={`p-2 rounded-xl text-center border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                        isSelected
-                          ? 'border-purple-600 bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold shadow-xs'
-                          : 'border-neutral-200 dark:border-neutral-750 bg-neutral-50 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:border-neutral-300'
-                      }`}
-                    >
-                      <span className="text-base leading-none">{cat.icon}</span>
-                      <span className="text-[10px] leading-tight line-clamp-1">{cat.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Lista de Comercios en la Categoría */}
-              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                    Comercios en esta lista ({stores.filter(s => selectedBuyCategory === 'todos' || s.categoriaPrincipal === selectedBuyCategory).length})
-                  </span>
-                  <span className="text-[10px] text-neutral-400">Selecciona para ver catálogo</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {stores
-                    .filter(s => selectedBuyCategory === 'todos' || s.categoriaPrincipal === selectedBuyCategory)
-                    .map(s => {
-                      const isStoreActive = s.activo !== false && s.abierto !== false;
-                      const isSelected = s.id === store.id;
-
+                  {/* Categorías Principales en Scroll Horizontal Móvil */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    {[
+                      { id: 'todos', label: 'Todos', icon: '🏪' },
+                      { id: 'hogar', label: 'Hogar', icon: '🏠' },
+                      { id: 'ferreteria', label: 'Ferretería', icon: '🔧' },
+                      { id: 'restaurantes', label: 'Restaurantes', icon: '🍽️' },
+                      { id: 'comida_rapida', label: 'Comida Rápida', icon: '⚡' },
+                      { id: 'supermercados', label: 'Supermercados', icon: '🛒' }
+                    ].map(cat => {
+                      const isSelected = selectedBuyCategory === cat.id;
                       return (
                         <button
-                          key={s.id}
+                          key={cat.id}
                           type="button"
-                          onClick={() => {
-                            switchStore(s.id);
-                            setCart({});
-                          }}
-                          className={`p-2.5 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between gap-2.5 ${
+                          onClick={() => setSelectedBuyCategory(cat.id)}
+                          className={`px-2.5 py-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
                             isSelected
-                              ? 'border-purple-600 bg-purple-500/10 shadow-xs'
-                              : 'border-neutral-200 dark:border-neutral-750 bg-neutral-50 dark:bg-neutral-900 hover:border-neutral-300'
+                              ? 'border-purple-600 bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold shadow-2xs'
+                              : 'border-neutral-200 dark:border-neutral-750 bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:border-neutral-300'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <img
-                              src={s.logoUrl}
-                              alt={s.nombre}
-                              className="w-10 h-10 rounded-xl object-cover shrink-0 border border-neutral-200 dark:border-neutral-700"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                                {s.nombre}
-                              </p>
-                              <p className="text-[10px] text-neutral-500 truncate">
-                                {s.categoria}
-                              </p>
-                              <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mt-0.5">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>{s.horaApertura || '08:00'} - {s.horaCierre || '22:00'}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            {isStoreActive ? (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                Abierto
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-[9px] font-bold inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
-                                Cerrado
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-sm leading-none">{cat.icon}</span>
+                          <span className="text-[11px] font-semibold whitespace-nowrap">{cat.label}</span>
                         </button>
                       );
                     })}
-                </div>
-              </div>
-            </div>
-
-            {/* Store Header Banner */}
-            <div className="relative rounded-2xl overflow-hidden shadow-xs border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850">
-              <img
-                src={store.portadaUrl}
-                alt={store.nombre}
-                className="w-full h-28 object-cover"
-              />
-              <div className="p-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-                      <span>{store.nombre}</span>
-                      {isStoreAvailable ? (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                          Servicio Disponible
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold">
-                          Sin Servicio Disponible
-                        </span>
-                      )}
-                    </h2>
-                    <p className="text-[11px] text-neutral-500">
-                      {store.categoria} • Horario: {store.horaApertura || '08:00'} - {store.horaCierre || '22:00'}
-                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowStoreInfoModal(true)}
-                    className="flex items-center gap-1 bg-purple-500/10 hover:bg-purple-500/20 px-2.5 py-1 rounded-full text-purple-600 dark:text-purple-400 text-xs font-bold transition cursor-pointer border border-purple-500/30"
-                    title="Ver Horarios y Calificaciones"
-                  >
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                    <span>{store.calificacion}</span>
-                    <span className="text-[10px] font-normal underline ml-0.5">Horarios & Info</span>
-                  </button>
                 </div>
 
-                {/* Banner de Advertencia si el comercio está cerrado/inactivo */}
-                {!isStoreAvailable && (
-                  <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
-                    <span>
-                      <strong>Comercio actualmente fuera de servicio:</strong> No se pueden agregar productos ni procesar pedidos porque el local está cerrado o inactivo.
+                {/* Directorio Ordenado de Comercios - Lista Vertical Compacta */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Comercios Disponibles ({stores.filter(s => selectedBuyCategory === 'todos' || s.categoriaPrincipal === selectedBuyCategory).length})
                     </span>
+                    <span className="text-[10px] text-neutral-400">Toca para abrir</span>
                   </div>
-                )}
 
-                <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[11px] text-neutral-500">
-                  <span>Envío: ${(store.costoEnvioUsd ?? 2.5).toFixed(2)} (Bs. {((store.costoEnvioUsd ?? 2.5) * tasaBcv).toFixed(2)})</span>
-                  <span className={isStoreAvailable ? 'text-emerald-500 font-medium' : 'text-neutral-400'}>
-                    {isStoreAvailable ? 'Abierto Ahora' : 'Cerrado Temporalmente'}
-                  </span>
+                  <div className="space-y-2">
+                    {stores
+                      .filter(s => selectedBuyCategory === 'todos' || s.categoriaPrincipal === selectedBuyCategory)
+                      .map(s => {
+                        const isStoreActive = s.activo !== false && s.abierto !== false;
+                        const isSelected = s.id === store.id;
+
+                        return (
+                          <div
+                            key={s.id}
+                            onClick={() => {
+                              switchStore(s.id);
+                              setSelectedStoreForView(s.id);
+                              setCart({});
+                            }}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 bg-white dark:bg-neutral-850 hover:border-purple-500 shadow-2xs ${
+                              isSelected
+                                ? 'border-purple-600 ring-2 ring-purple-500/20'
+                                : 'border-neutral-200 dark:border-neutral-800'
+                            }`}
+                          >
+                            {/* Logo de la tienda */}
+                            <img
+                              src={s.logoUrl}
+                              alt={s.nombre}
+                              className="w-14 h-14 rounded-xl object-cover shrink-0 border border-neutral-200 dark:border-neutral-700 shadow-2xs"
+                            />
+
+                            {/* Información: Nombre, Horario y Estatus */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <h3 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                                  {s.nombre}
+                                </h3>
+                                {isStoreActive ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold inline-flex items-center gap-1 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Abierto
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-750 text-neutral-500 dark:text-neutral-400 text-[9px] font-bold inline-flex items-center gap-1 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+                                    Cerrado
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Horario de Atención destacado */}
+                              <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+                                <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                                <span className="truncate">Horario: {s.horaApertura || '08:00'} - {s.horaCierre || '22:00'}</span>
+                              </div>
+
+                              {/* Categoría, Calificación y Envío */}
+                              <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 mt-0.5 truncate">
+                                <span className="truncate">{s.categoria}</span>
+                                <span>•</span>
+                                <span className="flex items-center gap-0.5 font-bold text-amber-500 shrink-0">
+                                  <Star className="w-3 h-3 fill-amber-400" />
+                                  {s.calificacion}
+                                </span>
+                                <span>•</span>
+                                <span className="shrink-0 font-medium text-neutral-600 dark:text-neutral-400">
+                                  ${(s.costoEnvioUsd ?? 2.5).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Flecha navegación */}
+                            <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Products List */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 px-1">
-                Menú & Especialidades
-              </h3>
+            {/* VIXY PEDIDOS - VISTA 2: CATÁLOGO Y ARTÍCULOS DE LA TIENDA SELECCIONADA */}
+            {selectedStoreForView && (
+              <div className="space-y-3">
+                {/* Botón de Regreso al directorio */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedStoreForView(null)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:text-purple-600 bg-white dark:bg-neutral-850 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-2xs cursor-pointer transition"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Volver a todas las tiendas</span>
+                </button>
 
-              {store.productos.map((prod) => {
-                const qty = cart[prod.id] || 0;
-                return (
-                  <div
-                    key={prod.id}
-                    className="p-2.5 bg-white dark:bg-neutral-850 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex gap-3 shadow-2xs"
-                  >
+                {/* Encabezado Principal de la Tienda: Portada, Logo, Nombre y Horario */}
+                <div className="rounded-2xl overflow-hidden shadow-xs border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850">
+                  <div className="relative h-24 w-full bg-neutral-200 dark:bg-neutral-800">
                     <img
-                      src={prod.imagenUrl}
-                      alt={prod.nombre}
-                      className="w-16 h-16 rounded-xl object-cover shrink-0"
+                      src={store.portadaUrl}
+                      alt={store.nombre}
+                      className="w-full h-full object-cover"
                     />
-                    <div className="flex-1 min-w-0 flex flex-col justify-between">
-                      <div>
-                        <h4 className="text-xs font-bold text-neutral-900 dark:text-white leading-tight">
-                          {prod.nombre}
-                        </h4>
-                        <p className="text-[10px] text-neutral-500 line-clamp-1 mt-0.5">
-                          {prod.descripcion}
-                        </p>
-                      </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  </div>
 
-                      <div className="flex items-center justify-between mt-1.5">
-                        <div>
-                          <span className="text-xs font-bold text-neutral-900 dark:text-white">
-                            ${(prod.precioUsd ?? 0).toFixed(2)}
+                  <div className="p-3 pt-0">
+                    <div className="flex items-end justify-between gap-2 -mt-7 mb-1.5">
+                      <img
+                        src={store.logoUrl}
+                        alt={store.nombre}
+                        className="w-14 h-14 rounded-xl object-cover border-2 border-white dark:border-neutral-800 shadow-md shrink-0 bg-white dark:bg-neutral-800"
+                      />
+                      <div className="flex items-center gap-1.5 pb-0.5">
+                        {isStoreAvailable ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Abierto
                           </span>
-                          <span className="text-[10px] text-neutral-400 ml-1">
-                            (Bs. {(prod.precioBs ?? ((prod.precioUsd ?? 0) * tasaBcv) ?? 0).toFixed(2)})
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Cerrado
                           </span>
-                        </div>
+                        )}
 
-                        <div className="flex items-center gap-1.5">
-                          {qty > 0 ? (
-                            <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-                              <button
-                                onClick={() => updateQuantity(prod.id, -1)}
-                                className="w-5 h-5 rounded bg-white dark:bg-neutral-700 flex items-center justify-center text-xs hover:bg-neutral-200"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span className="text-xs font-bold px-1">{qty}</span>
-                              <button
-                                onClick={() => updateQuantity(prod.id, 1)}
-                                className="w-5 h-5 rounded bg-amber-500 text-white flex items-center justify-center text-xs hover:bg-amber-600"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => updateQuantity(prod.id, 1)}
-                              disabled={!isStoreAvailable}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition ${
-                                isStoreAvailable
-                                  ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
-                                  : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
-                              }`}
-                              title={isStoreAvailable ? 'Agregar al pedido' : 'Comercio inactivo o fuera de horario'}
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>{isStoreAvailable ? 'Agregar' : 'No disponible'}</span>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowStoreInfoModal(true)}
+                          className="flex items-center gap-1 bg-purple-500/10 hover:bg-purple-500/20 px-2 py-0.5 rounded-full text-purple-600 dark:text-purple-400 text-[10px] font-bold transition cursor-pointer border border-purple-500/30"
+                          title="Ver Horarios y Calificaciones"
+                        >
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                          <span>{store.calificacion}</span>
+                        </button>
                       </div>
                     </div>
+
+                    <div>
+                      <h2 className="text-sm font-black text-neutral-900 dark:text-white leading-tight truncate">
+                        {store.nombre}
+                      </h2>
+
+                      {/* Horario de Atención destacado */}
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mt-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className="truncate">Horario de atención: {store.horaApertura || '08:00'} - {store.horaCierre || '22:00'}</span>
+                      </div>
+
+                      <p className="text-[10px] text-neutral-500 mt-0.5 truncate">
+                        {store.categoria} • Dirección: {store.direccion || 'Caracas, Venezuela'}
+                      </p>
+                    </div>
+
+                    {/* Banner de Advertencia si el local está inactivo */}
+                    {!isStoreAvailable && (
+                      <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-amber-800 dark:text-amber-300 text-[10px] flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                        <span>Comercio cerrado o inactivo en este momento.</span>
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[10px] text-neutral-500">
+                      <span>Envío: ${(store.costoEnvioUsd ?? 2.5).toFixed(2)} USD</span>
+                      <span className="font-mono font-medium">BCV: Bs. {tasaBcv.toFixed(2)}</span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+
+                {/* Lista de Artículos Disponibles de la Tienda - Lista Vertical */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-300 flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Artículos Disponibles ({store.productos.length})</span>
+                    </h3>
+                    <span className="text-[10px] text-neutral-400 font-mono">
+                      USD / Bs
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {store.productos.map((prod) => {
+                      const qty = cart[prod.id] || 0;
+                      return (
+                        <div
+                          key={prod.id}
+                          className="p-2.5 bg-white dark:bg-neutral-850 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex gap-3 shadow-2xs"
+                        >
+                          <img
+                            src={prod.imagenUrl}
+                            alt={prod.nombre}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-neutral-200 dark:border-neutral-700"
+                          />
+                          <div className="flex-1 min-w-0 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded inline-block mb-0.5">
+                                {prod.categoria || 'Menú'}
+                              </span>
+                              <h4 className="text-xs font-bold text-neutral-900 dark:text-white leading-tight truncate">
+                                {prod.nombre}
+                              </h4>
+                              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed mt-0.5">
+                                {prod.descripcion}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                              <div>
+                                <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                                  ${(prod.precioUsd ?? 0).toFixed(2)}
+                                </span>
+                                <span className="text-[10px] text-neutral-400 font-mono ml-1">
+                                  (Bs. {(prod.precioBs ?? ((prod.precioUsd ?? 0) * tasaBcv) ?? 0).toFixed(2)})
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {qty > 0 ? (
+                                  <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-700">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuantity(prod.id, -1)}
+                                      className="w-5 h-5 rounded bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white flex items-center justify-center text-xs font-bold hover:bg-neutral-200 transition cursor-pointer"
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </button>
+                                    <span className="text-xs font-bold px-1 min-w-[16px] text-center">{qty}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuantity(prod.id, 1)}
+                                      className="w-5 h-5 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateQuantity(prod.id, 1)}
+                                    disabled={!isStoreAvailable}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition ${
+                                      isStoreAvailable
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                                        : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
+                                    }`}
+                                    title={isStoreAvailable ? 'Agregar al pedido' : 'Comercio inactivo o fuera de horario'}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>{isStoreAvailable ? 'Agregar' : 'Cerrado'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Cart Floating Bar */}
             {cartItems.length > 0 && !showCheckout && (
-              <div className="sticky bottom-1 p-2 bg-neutral-900 text-white rounded-2xl shadow-xl flex items-center justify-between border border-neutral-700">
-                <div>
-                  <span className="text-[10px] text-neutral-400 block">
-                    {cartItems.reduce((c, i) => c + i.quantity, 0)} productos seleccionados
+              <div className="sticky bottom-2 p-3 bg-neutral-900 text-white rounded-2xl shadow-2xl flex items-center justify-between border border-neutral-700 z-30">
+                <div className="space-y-0.5">
+                  <span className="text-xs text-neutral-300 block">
+                    {cartItems.reduce((c, i) => c + i.quantity, 0)} {cartItems.reduce((c, i) => c + i.quantity, 0) === 1 ? 'producto seleccionado' : 'productos seleccionados'}
                   </span>
-                  <span className="text-xs font-bold text-amber-400">
-                    ${totalUsd.toFixed(2)} USD • Bs. {totalBs.toFixed(2)}
+                  <span className="text-sm font-black text-amber-400 font-mono">
+                    ${totalUsd.toFixed(2)} USD <span className="text-xs text-neutral-300 font-normal">• Bs. {totalBs.toFixed(2)}</span>
                   </span>
                 </div>
                 <button
@@ -824,14 +895,14 @@ export const ClientApp: React.FC = () => {
                     setShowCheckout(true);
                   }}
                   disabled={!isStoreAvailable}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs ${
+                  className={`px-4 py-2.5 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md transition ${
                     isStoreAvailable
-                      ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer active:scale-95'
                       : 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
                   }`}
                 >
-                  <span>{isStoreAvailable ? 'Pagar Pedido' : 'Local Inactivo'}</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <span>{isStoreAvailable ? 'Procesar Pedido' : 'Local Inactivo'}</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -1405,6 +1476,35 @@ export const ClientApp: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Live CARTO OpenSource Route & Tracking Map */}
+                {latestOrder.estado !== 'cancelado' && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-amber-500" />
+                        Ruta Satelital (CARTO OpenSource)
+                      </span>
+                      <span className="text-[9px] font-mono text-emerald-500 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Monitoreo en Tiempo Real
+                      </span>
+                    </div>
+                    <OrderTrackingMap
+                      storeLat={store.lat || 10.4930}
+                      storeLng={store.lng || -66.8520}
+                      storeName={store.nombre}
+                      driverLat={latestOrder.conductor?.lat}
+                      driverLng={latestOrder.conductor?.lng}
+                      driverName={latestOrder.conductor ? `${latestOrder.conductor.nombre} ${latestOrder.conductor.apellido}` : undefined}
+                      driverPhoto={latestOrder.conductor?.fotoUrl}
+                      clientLat={10.4890}
+                      clientLng={-66.8560}
+                      clientAddress={latestOrder.cliente?.direccion || 'Av. Francisco de Miranda, Chacao'}
+                      orderStatus={latestOrder.estado}
+                    />
+                  </div>
+                )}
 
                 {/* Assigned Motorizado Card with Driver Presentation Modal Button */}
                 {latestOrder.conductor && (

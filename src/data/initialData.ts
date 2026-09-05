@@ -43,12 +43,12 @@ export const TASA_BCV_ACTUAL = 78.50; // Bs por USD referencial
 export const INITIAL_TARIFAS_CONFIG: TarifasDeliveryConfig = {
   tasaBcvBs: TASA_BCV_ACTUAL,
   porcentajeComisionDelivery: 12, // 12% Comisión de servicio para la plataforma (no toca precios de comercios)
-  tarifaBaseMinimaUsd: 2.00, // Tarifa de viaje mínimo hasta 3 km
+  tarifaBaseMinimaUsd: 2.00, // Tarifa de viaje mínimo hasta 3 km ($2.00 USD)
   distanciaBaseKm: 3.0, // 3.0 km fijos de viaje mínimo
-  fraccionCalculoKm: 0.5, // Cálculos a partir de tramos de 0.5 km
-  costoPorFraccionUsd: 0.35, // $0.35 por cada fracción de 0.5 km adicional
+  fraccionCalculoKm: 1.0, // Cálculo por kilómetro
+  costoPorFraccionUsd: 0.50, // $0.50 USD por cada km después de los 3 km de recorrido
   comisionMotorizadoPorcentaje: 88, // 88% neto para el conductor
-  fechaActualizacion: '2026-09-02 16:30:00'
+  fechaActualizacion: '2026-09-04 18:00:00'
 };
 
 export const ZONAS_CALOR_CARACAS: ZonaCalor[] = [
@@ -1566,7 +1566,222 @@ export const INITIAL_ORDERS: Pedido[] = [
         actor: 'comercio',
         timestamp: '17:05:00'
       }
+    ],
+    solicitadoPor: 'comercio'
+  },
+  {
+    id: 'ped-8045',
+    codigoSeguimiento: 'TIEN-5201',
+    cliente: {
+      id: 'cli-tienda-5201',
+      nombre: 'Mauricio',
+      apellido: 'Vallenilla (Arq.)',
+      cedula: 'V-16.482.901',
+      telefono: '+58 414 901 8822',
+      email: 'm.vallenilla@estudioarq.ve',
+      direccion: 'Av. Eugenio Mendoza, Res. La Floresta, Torre B, Piso 4, Chacao',
+      puntoReferencia: 'A media cuadra de la Plaza La Floresta',
+      lat: 10.4950,
+      lng: -66.8430,
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+    },
+    comercio: DEMO_COMERCIO_FERRETERIA,
+    conductor: DEMO_CONDUCTOR,
+    items: [
+      {
+        productoId: 'ferr-1',
+        nombre: 'Taladro Percutor Inalámbrico 20V Brushless',
+        cantidad: 1,
+        precioUnitarioUsd: 85.00,
+        subtotalUsd: 85.00
+      },
+      {
+        productoId: 'ferr-5',
+        nombre: 'Set de Brocas para Concreto y Metal (10 piezas)',
+        cantidad: 1,
+        precioUnitarioUsd: 14.50,
+        subtotalUsd: 14.50
+      }
+    ],
+    montoSubtotalUsd: 99.50,
+    costoEnvioUsd: 3.80,
+    montoTotalUsd: 103.30,
+    tasaBcvBs: TASA_BCV_ACTUAL,
+    montoTotalBs: 103.30 * TASA_BCV_ACTUAL,
+    metodoPagoSeleccionado: 'transferencia_bancaria',
+    referenciaPago: 'PAGO-BANESCO-FERRE-00982',
+    comprobantePagoUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80',
+    estado: 'en_camino_al_cliente',
+    creadoEn: '2026-09-02 16:10:00',
+    actualizadoEn: '2026-09-02 16:35:00',
+    tiempoEstimadoRestanteSegundos: 480,
+    esPedidoTienda: true,
+    origenPedido: 'tienda_independiente',
+    solicitadoPor: 'comercio',
+    detallesEntregaTienda: {
+      ubicacionEscrita: 'Av. Eugenio Mendoza, Res. La Floresta, Torre B, Piso 4, Chacao',
+      puntoReferencia: 'A media cuadra de la Plaza La Floresta',
+      zonaMunicipio: 'Chacao',
+      contactoCliente: 'Arq. Mauricio Vallenilla',
+      telefonoCliente: '+58 414 901 8822',
+      notasComercio: 'Mercancía en caja sellada con precinto de seguridad FerreCaracas. Factura comercial dentro del sobre transparente frontal.',
+      modalidadCobro: 'ya_pagado_al_comercio',
+      contactoRetiroComercio: 'Ángel Gómez (Despacho Mostrador)',
+      telefonoRetiroComercio: '+58 212 263 8811'
+    },
+    metricasTiempo: {
+      tiempoDespachoComercioMin: 12,
+      tiempoEntregaMotorizadoMin: 11,
+      distanciaKm: 3.8,
+      estimadoDespachoMin: 15,
+      estimadoEntregaMin: 14
+    },
+    historialOperaciones: [
+      {
+        id: 'hist-5201-1',
+        estado: 'esperando_repartidor',
+        descripcion: 'Ferretería Industrial FerreCaracas registró orden B2B y solicitó motorizado de carga segura.',
+        actor: 'comercio',
+        timestamp: '16:10:00'
+      },
+      {
+        id: 'hist-5201-2',
+        estado: 'en_camino_al_comercio',
+        descripcion: 'Motorizado Yeferson Ramírez aceptó el despacho ferretero y acudió al mostrador.',
+        actor: 'conductor',
+        timestamp: '16:15:30'
+      },
+      {
+        id: 'hist-5201-3',
+        estado: 'en_camino_al_cliente',
+        descripcion: 'Paquete de herramientas verificado y sellado. Motorizado en trayecto hacia La Floresta, Chacao.',
+        actor: 'conductor',
+        timestamp: '16:30:00'
+      }
     ]
+  },
+  {
+    id: 'ped-8046',
+    codigoSeguimiento: 'TIEN-6340',
+    cliente: {
+      id: 'cli-tienda-6340',
+      nombre: 'Carmen',
+      apellido: 'Zambrano (Dra.)',
+      cedula: 'V-12.983.401',
+      telefono: '+58 412 882 1099',
+      email: 'carmen.zambrano@salud.ve',
+      direccion: 'Av. Venezuela con Calle Mohedano, Torre Rosal Plaza, Apto 8-C, El Rosal',
+      puntoReferencia: 'Torre frente a Banco Banesco, timbre 8-C',
+      lat: 10.4910,
+      lng: -66.8650,
+      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+    },
+    comercio: DEMO_COMERCIO_SUPERMERCADO,
+    conductor: DEMO_CONDUCTOR,
+    items: [
+      {
+        productoId: 'sup-1',
+        nombre: 'Harina de Maíz Blanco Precocida P.A.N. 1kg',
+        cantidad: 3,
+        precioUnitarioUsd: 1.40,
+        subtotalUsd: 4.20
+      },
+      {
+        productoId: 'sup-4',
+        nombre: 'Queso Paisa Rebanado Pasteurizado 400g',
+        cantidad: 2,
+        precioUnitarioUsd: 4.20,
+        subtotalUsd: 8.40
+      },
+      {
+        productoId: 'sup-5',
+        nombre: 'Café Molido San Antonio Tradicional 250g',
+        cantidad: 2,
+        precioUnitarioUsd: 2.80,
+        subtotalUsd: 5.60
+      },
+      {
+        productoId: 'sup-3',
+        nombre: 'Aceite Vegetal Comestible Mazeite 1 Litro',
+        cantidad: 1,
+        precioUnitarioUsd: 3.60,
+        subtotalUsd: 3.60
+      }
+    ],
+    montoSubtotalUsd: 21.80,
+    costoEnvioUsd: 2.90,
+    montoTotalUsd: 24.70,
+    tasaBcvBs: TASA_BCV_ACTUAL,
+    montoTotalBs: 24.70 * TASA_BCV_ACTUAL,
+    metodoPagoSeleccionado: 'pago_movil',
+    referenciaPago: 'PAGOMOVIL-MERCANTIL-77821',
+    comprobantePagoUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80',
+    estado: 'entregado',
+    creadoEn: '2026-09-02 14:20:00',
+    actualizadoEn: '2026-09-02 15:05:00',
+    tiempoEstimadoRestanteSegundos: 0,
+    esPedidoTienda: true,
+    origenPedido: 'tienda_independiente',
+    solicitadoPor: 'comercio',
+    detallesEntregaTienda: {
+      ubicacionEscrita: 'Av. Venezuela con Calle Mohedano, Torre Rosal Plaza, Apto 8-C, El Rosal',
+      puntoReferencia: 'Torre frente a Banco Banesco, timbre 8-C',
+      zonaMunicipio: 'Chacao / El Rosal',
+      contactoCliente: 'Dra. Carmen Zambrano',
+      telefonoCliente: '+58 412 882 1099',
+      notasComercio: 'Víveres empacados en bolsas biodegradables rotuladas. Artículos lácteos refrigerados en bolsa térmica.',
+      modalidadCobro: 'ya_pagado_al_comercio',
+      contactoRetiroComercio: 'Caja Rápida Despacho Gourmet',
+      telefonoRetiroComercio: '+58 212 951 0022'
+    },
+    metricasTiempo: {
+      tiempoDespachoComercioMin: 15,
+      tiempoEntregaMotorizadoMin: 14,
+      distanciaKm: 3.1,
+      estimadoDespachoMin: 15,
+      estimadoEntregaMin: 15
+    },
+    historialOperaciones: [
+      {
+        id: 'hist-6340-1',
+        estado: 'esperando_repartidor',
+        descripcion: 'Supermercado Central Gourmet solicitó delivery de víveres a domicilio.',
+        actor: 'comercio',
+        timestamp: '14:20:00'
+      },
+      {
+        id: 'hist-6340-2',
+        estado: 'en_camino_al_comercio',
+        descripcion: 'Conductor Luis García (Yamaha DT, AG-5511) aceptó el viaje y llegó al supermercado.',
+        actor: 'conductor',
+        timestamp: '14:25:00'
+      },
+      {
+        id: 'hist-6340-3',
+        estado: 'en_camino_al_cliente',
+        descripcion: 'Víveres retirados en mostrador. En trayecto hacia Torre Rosal Plaza.',
+        actor: 'conductor',
+        timestamp: '14:42:00'
+      },
+      {
+        id: 'hist-6340-4',
+        estado: 'entregado',
+        descripcion: 'Entrega finalizada en puerta 8-C. Cliente recibió y firmó conformidad.',
+        actor: 'conductor',
+        timestamp: '15:05:00'
+      }
+    ],
+    fotoVerificacion: {
+      id: 'foto-6340',
+      pedidoId: 'ped-8046',
+      url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+      fecha: '2026-09-02 15:04:55',
+      conductorId: 'cond-002',
+      conductorNombre: 'Luis García',
+      clienteNombre: 'Carmen Zambrano',
+      coordenadas: '10.4912° N, 66.8649° W (El Rosal, Torre Rosal Plaza)',
+      comentario: 'Bolsas selladas de víveres entregadas en mano en puerta del Apto 8-C.'
+    }
   }
 ];
 
@@ -1613,7 +1828,7 @@ export const INITIAL_ADMIN_USERS: AdminUser[] = [
     fechaCambioClave: '2026-09-03',
     fechaVencimientoClave: '2026-12-02',
     diasVigenciaClave: 90,
-    pestanasPermitidas: ['dashboard', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'soporte', 'verificaciones', 'pagos', 'usuarios_web', 'logs', 'backend']
+    pestanasPermitidas: ['dashboard', 'mapa_conductores', 'mapa_flota', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'soporte', 'verificaciones', 'pagos', 'usuarios_web', 'logs', 'backend']
   },
   {
     id: 'admin-01',
@@ -1630,7 +1845,7 @@ export const INITIAL_ADMIN_USERS: AdminUser[] = [
     fechaCambioClave: '2026-09-01',
     fechaVencimientoClave: '2026-11-30',
     diasVigenciaClave: 90,
-    pestanasPermitidas: ['dashboard', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'soporte', 'verificaciones', 'pagos', 'usuarios_web', 'logs', 'backend']
+    pestanasPermitidas: ['dashboard', 'mapa_conductores', 'mapa_flota', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'soporte', 'verificaciones', 'pagos', 'usuarios_web', 'logs', 'backend']
   },
   {
     id: 'admin-02',
@@ -1647,7 +1862,7 @@ export const INITIAL_ADMIN_USERS: AdminUser[] = [
     fechaCambioClave: '2026-09-01',
     fechaVencimientoClave: '2026-11-30',
     diasVigenciaClave: 90,
-    pestanasPermitidas: ['dashboard', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'verificaciones', 'logs']
+    pestanasPermitidas: ['dashboard', 'mapa_conductores', 'mapa_flota', 'recargas', 'custodia', 'reclamos', 'pedidos', 'conductores', 'comercios', 'incidencias', 'verificaciones', 'logs']
   },
   {
     id: 'admin-03',

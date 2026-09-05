@@ -2,7 +2,7 @@
 
 export type UserRole = 'super_admin' | 'operador' | 'soporte' | 'comercio' | 'conductor' | 'cliente' | 'finanzas' | 'auditor';
 
-export type MetodoPagoTipo = 'pago_movil' | 'zelle' | 'zinli' | 'binance' | 'paypal' | 'efectivo' | 'efectivo_usd' | 'punto_venta' | 'saldo_cartera';
+export type MetodoPagoTipo = 'pago_movil' | 'zelle' | 'zinli' | 'binance' | 'paypal' | 'efectivo' | 'efectivo_usd' | 'punto_venta' | 'saldo_cartera' | 'transferencia_bancaria';
 
 export interface VenezuelanLegalDocs {
   cedula: string; // Ej: V-24.892.110
@@ -346,6 +346,7 @@ export interface Pedido {
   fotoVerificacion?: FotoVerificacion;
   esPedidoTienda?: boolean;
   origenPedido?: 'app_cliente' | 'tienda_independiente';
+  solicitadoPor?: 'comercio' | 'cliente';
   detallesEntregaTienda?: {
     ubicacionEscrita: string;
     puntoReferencia?: string;
@@ -353,6 +354,11 @@ export interface Pedido {
     contactoCliente?: string;
     telefonoCliente?: string;
     notasComercio?: string;
+    modalidadCobro?: 'cobro_efectivo_en_puerta' | 'ya_pagado_al_comercio' | 'transferencia_pendiente';
+    montoACobrarClienteUsd?: number;
+    cambioParaClienteUsd?: number;
+    contactoRetiroComercio?: string;
+    telefonoRetiroComercio?: string;
   };
   calificacionCliente?: {
     estrellas: number;
