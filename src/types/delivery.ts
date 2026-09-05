@@ -380,6 +380,10 @@ export interface Pedido {
     instruccionMotorizado: string; // ej: "Cobrar al cliente $15" o "Ya pagado por Cartera Vixy - NO cobrar"
     instruccionComercio: string; // ej: "Acreditado a Cartera Comercial" o "Pago Directo Móvil recibido"
   };
+  conductoresRechazaron?: string[]; // IDs de conductores que han rechazado o se les agotó el tiempo
+  conductorOfrecidoId?: string; // ID del conductor a quien se le ofrece actualmente
+  tiempoRestanteAceptarConductor?: number; // 15 segundos para aceptar por motorizado
+  tiempoRestanteAceptarComercio?: number; // 60 segundos (1 minuto) para aceptar por comercio
 }
 
 export interface SolicitudRecarga {

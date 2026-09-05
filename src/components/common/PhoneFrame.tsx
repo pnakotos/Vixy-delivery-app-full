@@ -19,11 +19,11 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
   return (
     <div className={`flex flex-col items-center shrink-0 ${width} max-w-full`}>
       {/* Device Label */}
-      <div className="mb-2 text-center">
-        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide block">
+      <div className="mb-2 text-center w-full px-2">
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide block leading-snug">
           {title}
         </span>
-        <span className="text-[10px] text-slate-500 font-mono">
+        <span className="text-[10px] text-slate-500 font-mono block leading-tight mt-0.5">
           Subdominio: {appName}
         </span>
       </div>

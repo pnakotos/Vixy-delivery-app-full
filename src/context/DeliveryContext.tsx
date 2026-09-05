@@ -43,6 +43,7 @@ import {
   INITIAL_TARIFAS_CONFIG,
   TASA_BCV_ACTUAL 
 } from '../data/initialData';
+import { playBellChimeSound } from '../utils/audio';
 
 interface DeliveryContextType {
   orders: Pedido[];
@@ -196,7 +197,43 @@ interface DeliveryContextType {
   realGpsError: string | null;
   requestPushNotificationPermission: () => Promise<boolean>;
   playNotificationSound: () => void;
+  playBellSound: (variant?: 'store' | 'driver') => void;
 }
+
+export const findClosestAvailableDriver = (
+  pickupLat: number,
+  pickupLng: number,
+  rejectedDriverIds: string[] = [],
+  ordersList: Pedido[],
+  driversList: Conductor[]
+): Conductor | null => {
+  const eligibleDrivers = driversList.filter(d => {
+    // 1. Debe estar activo y disponible
+    if (d.activo === false || d.disponible === false) return false;
+    // 2. Saldo no bloqueado (límite -$0.50)
+    if ((d.billetera?.saldoUsd ?? 0) <= -0.50) return false;
+    // 3. No haber rechazado este pedido previamente
+    if (rejectedDriverIds.includes(d.id)) return false;
+    // 4. Si el conductor está ocupado en una carrera activa en curso, saltarlo automáticamente al siguiente
+    const isOccupied = ordersList.some(o => 
+      o.conductor?.id === d.id && 
+      (o.estado === 'en_camino_al_comercio' || o.estado === 'en_camino_al_cliente')
+    );
+    if (isOccupied) return false;
+    return true;
+  });
+
+  if (eligibleDrivers.length === 0) return null;
+
+  // Ordenar de menor a mayor distancia euclidiana respecto al punto de recolección
+  eligibleDrivers.sort((a, b) => {
+    const distA = Math.hypot(a.lat - pickupLat, a.lng - pickupLng);
+    const distB = Math.hypot(b.lat - pickupLat, b.lng - pickupLng);
+    return distA - distB;
+  });
+
+  return eligibleDrivers[0];
+};
 
 const DeliveryContext = createContext<DeliveryContextType | undefined>(undefined);
 
@@ -1306,21 +1343,118 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return false;
   };
 
-  // Real-time countdown timer for orders in delivery
+  // Real-time countdown timer for orders in delivery, driver offers (15s), and store acceptance (60s)
   useEffect(() => {
     const interval = setInterval(() => {
-      setOrders(prev => prev.map(order => {
-        if (order.estado === 'en_camino_al_cliente' && order.tiempoEstimadoRestanteSegundos > 0) {
-          return {
-            ...order,
-            tiempoEstimadoRestanteSegundos: order.tiempoEstimadoRestanteSegundos - 1
-          };
-        }
-        return order;
-      }));
+      setOrders(prev => {
+        let changed = false;
+        const timeStr = new Date().toTimeString().split(' ')[0];
+
+        const updated = prev.map(order => {
+          let o = { ...order };
+
+          // 1. Contador de viaje en ruta al cliente
+          if (o.estado === 'en_camino_al_cliente' && o.tiempoEstimadoRestanteSegundos > 0) {
+            o.tiempoEstimadoRestanteSegundos = o.tiempoEstimadoRestanteSegundos - 1;
+            changed = true;
+          }
+
+          // 2. Contador de Aceptación para Comercio Vixy Store (1 minuto = 60 segundos)
+          if (
+            (o.estado === 'pendiente_pago' || o.estado === 'pago_verificado') &&
+            o.tiempoRestanteAceptarComercio !== undefined &&
+            o.tiempoRestanteAceptarComercio > 0
+          ) {
+            const nextTime = o.tiempoRestanteAceptarComercio - 1;
+            o.tiempoRestanteAceptarComercio = nextTime;
+            changed = true;
+
+            // Campanada periódica de aviso sonando mientras dura el minuto (cada 15s y al llegar a 10s y 5s)
+            if (nextTime > 0 && (nextTime % 15 === 0 || nextTime === 10 || nextTime === 5)) {
+              playBellChimeSound('store');
+            }
+
+            // Si se agota el minuto (60s) sin respuesta del comercio:
+            if (nextTime === 0) {
+              o.estado = 'cancelado';
+              o.historialOperaciones = [
+                ...o.historialOperaciones,
+                {
+                  id: 'hist-' + Date.now(),
+                  estado: 'cancelado',
+                  descripcion: 'Tiempo de aceptación agotado (1 minuto sin respuesta del comercio). Pedido cancelado automáticamente por el sistema.',
+                  actor: 'sistema',
+                  timestamp: timeStr
+                }
+              ];
+            }
+          }
+
+          // 3. Contador de Aceptación para Conductor Vixy Delivery (15 segundos)
+          if (
+            o.estado === 'esperando_repartidor' &&
+            o.tiempoRestanteAceptarConductor !== undefined &&
+            o.tiempoRestanteAceptarConductor > 0
+          ) {
+            const nextDriverTime = o.tiempoRestanteAceptarConductor - 1;
+            o.tiempoRestanteAceptarConductor = nextDriverTime;
+            changed = true;
+
+            // Si se agotan los 15 segundos sin aceptar:
+            if (nextDriverTime === 0) {
+              const currentOfferedId = o.conductorOfrecidoId || (o.conductor ? o.conductor.id : undefined);
+              const rejectedList = [...(o.conductoresRechazaron || [])];
+              if (currentOfferedId && !rejectedList.includes(currentOfferedId)) {
+                rejectedList.push(currentOfferedId);
+              }
+              o.conductoresRechazaron = rejectedList;
+
+              // Buscar al siguiente conductor más cercano disponible que NO esté ocupado
+              const pickupLat = o.comercio?.lat || 10.4950;
+              const pickupLng = o.comercio?.lng || -66.8480;
+              const nextDriver = findClosestAvailableDriver(pickupLat, pickupLng, rejectedList, prev, allDrivers);
+
+              if (nextDriver) {
+                o.conductor = undefined;
+                o.conductorOfrecidoId = nextDriver.id;
+                o.tiempoRestanteAceptarConductor = 15; // 15 segundos para el nuevo conductor
+                playBellChimeSound('driver');
+                o.historialOperaciones = [
+                  ...o.historialOperaciones,
+                  {
+                    id: 'hist-' + Date.now(),
+                    estado: 'esperando_repartidor',
+                    descripcion: `Tiempo agotado (15s). Saltando automáticamente al conductor más cercano disponible: ${nextDriver.nombre} ${nextDriver.apellido} (${nextDriver.moto.marca} ${nextDriver.moto.placa}).`,
+                    actor: 'sistema',
+                    timestamp: timeStr
+                  }
+                ];
+              } else {
+                o.conductor = undefined;
+                o.conductorOfrecidoId = undefined;
+                o.tiempoRestanteAceptarConductor = 0;
+                o.historialOperaciones = [
+                  ...o.historialOperaciones,
+                  {
+                    id: 'hist-' + Date.now(),
+                    estado: 'esperando_repartidor',
+                    descripcion: 'Tiempo de aceptación agotado (15s). Todos los motorizados cercanos están ocupados o declinaron. En espera de nuevo conductor disponible.',
+                    actor: 'sistema',
+                    timestamp: timeStr
+                  }
+                ];
+              }
+            }
+          }
+
+          return o;
+        });
+
+        return changed ? updated : prev;
+      });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [allDrivers]);
 
   const addNotification = (destinatario: 'cliente' | 'comercio' | 'conductor' | 'web', titulo: string, cuerpo: string) => {
     const newNotif: NotificacionPush = {
@@ -1333,8 +1467,14 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setNotifications(prev => [newNotif, ...prev]);
 
-    // 1. Chime acústico en tiempo real
-    playNotificationSound();
+    // 1. Chime acústico en tiempo real según la aplicación
+    if (destinatario === 'comercio') {
+      playBellChimeSound('store');
+    } else if (destinatario === 'conductor') {
+      playBellChimeSound('driver');
+    } else {
+      playNotificationSound();
+    }
 
     // 2. Notificación Push del Sistema Operativo
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -1606,6 +1746,9 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               : `📲 Pago directo realizado por el cliente: Ref ${referenciaPago || 'S/N'}. Verificar abono en cuenta bancaria.`)
       },
       estado: estadoInicial,
+      tiempoRestanteAceptarComercio: 60, // 1 minuto para que la tienda acepte
+      tiempoRestanteAceptarConductor: 0,
+      conductoresRechazaron: [],
       creadoEn: dateStr,
       actualizadoEn: dateStr,
       tiempoEstimadoRestanteSegundos: 1800,
@@ -1623,6 +1766,7 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setOrders(prev => [newOrder, ...prev]);
+    playBellChimeSound('store');
 
     if (esCartera) {
       addNotification('cliente', '✅ Pago con Cartera Exitoso', `Tu orden #${codigo} fue pagada con éxito con tu Saldo Cartera ($${totalUsd.toFixed(2)}).`);
@@ -1673,12 +1817,20 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
     };
 
+    const pickupLat = store.lat || 10.4950;
+    const pickupLng = store.lng || -66.8480;
+    const closestDriver = findClosestAvailableDriver(pickupLat, pickupLng, [], orders, allDrivers);
+
     const newOrder: Pedido = {
       id,
       codigoSeguimiento: codigo,
       cliente: clienteTienda,
       comercio: store,
       conductor: undefined,
+      conductorOfrecidoId: closestDriver ? closestDriver.id : undefined,
+      tiempoRestanteAceptarConductor: closestDriver ? 15 : 0,
+      tiempoRestanteAceptarComercio: 0,
+      conductoresRechazaron: [],
       items: params.items.map((it, idx) => ({
         productoId: it.productoId || `item-manual-${idx}`,
         nombre: it.nombre,
@@ -1754,26 +1906,45 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const timeStr = new Date().toTimeString().split(' ')[0];
     let acceptedOrder: Pedido | undefined;
 
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        acceptedOrder = {
-          ...o,
-          estado: 'en_preparacion',
-          historialOperaciones: [
-            ...o.historialOperaciones,
-            {
-              id: 'hist-' + Date.now(),
-              estado: 'en_preparacion',
-              descripcion: `Comercio ${store.nombre} ACEPTÓ la solicitud del cliente. Comanda en preparación en cocina/almacén. Búsqueda de motorizado iniciada en zona Caracas.`,
-              actor: 'comercio',
-              timestamp: timeStr
-            }
-          ]
-        };
-        return acceptedOrder;
-      }
-      return o;
-    }));
+    setOrders(prev => {
+      const orderTarget = prev.find(o => o.id === orderId);
+      const pickupLat = orderTarget?.comercio?.lat || store.lat || 10.4950;
+      const pickupLng = orderTarget?.comercio?.lng || store.lng || -66.8480;
+      const closestDriver = findClosestAvailableDriver(pickupLat, pickupLng, [], prev, allDrivers);
+
+      return prev.map(o => {
+        if (o.id === orderId) {
+          acceptedOrder = {
+            ...o,
+            tiempoRestanteAceptarComercio: 0,
+            conductorOfrecidoId: closestDriver ? closestDriver.id : undefined,
+            tiempoRestanteAceptarConductor: closestDriver ? 15 : 0,
+            conductoresRechazaron: [],
+            estado: 'en_preparacion',
+            historialOperaciones: [
+              ...o.historialOperaciones,
+              {
+                id: 'hist-' + Date.now(),
+                estado: 'en_preparacion',
+                descripcion: `Comercio ${store.nombre} ACEPTÓ la solicitud del cliente. Comanda en preparación en cocina/almacén. ${
+                  closestDriver 
+                    ? `Notificado motorizado más cercano: ${closestDriver.nombre} ${closestDriver.apellido} (${closestDriver.moto.marca} ${closestDriver.moto.placa}) con 15s para responder.`
+                    : 'Búsqueda de motorizado iniciada en zona Caracas.'
+                }`,
+                actor: 'comercio',
+                timestamp: timeStr
+              }
+            ]
+          };
+          return acceptedOrder;
+        }
+        return o;
+      });
+    });
+
+    if (acceptedOrder) {
+      playBellChimeSound('driver');
+    }
 
     const codigo = acceptedOrder?.codigoSeguimiento || orderId;
     const destino = acceptedOrder?.cliente?.direccion || 'zona Caracas';
@@ -1997,13 +2168,15 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return {
           ...o,
           conductor: driver,
+          conductorOfrecidoId: undefined,
+          tiempoRestanteAceptarConductor: 0,
           estado: 'en_camino_al_comercio',
           historialOperaciones: [
             ...o.historialOperaciones,
             {
               id: 'hist-' + Date.now(),
               estado: 'en_camino_al_comercio',
-              descripcion: `Motorizado ${driver.nombre} Ramírez aceptó la carrera y va rumbo al comercio.`,
+              descripcion: `Motorizado ${driver.nombre} Ramírez aceptó la carrera dentro del tiempo límite (15s) y va rumbo al comercio.`,
               actor: 'conductor',
               timestamp: timeStr
             }
@@ -2040,6 +2213,8 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return {
           ...o,
           conductor: selectedDriver,
+          conductorOfrecidoId: undefined,
+          tiempoRestanteAceptarConductor: 0,
           estado: 'en_camino_al_comercio',
           historialOperaciones: [
             ...o.historialOperaciones,
@@ -2072,34 +2247,78 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const driverRejectOrder = (orderId: string, motivo: string = 'Distancia no conveniente') => {
     const timeStr = new Date().toTimeString().split(' ')[0];
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        return {
-          ...o,
-          conductor: undefined,
-          estado: 'esperando_repartidor',
-          historialOperaciones: [
-            ...o.historialOperaciones,
-            {
-              id: 'hist-' + Date.now(),
-              estado: 'esperando_repartidor',
-              descripcion: `Motorizado ${driver.nombre} Ramírez rechazó la solicitud (${motivo}). Pedido retornado al radar de repartidores.`,
-              actor: 'conductor',
-              timestamp: timeStr
-            }
-          ]
-        };
+    let nextAssignedDriver: Conductor | null = null;
+
+    setOrders(prev => {
+      const orderTarget = prev.find(o => o.id === orderId);
+      const currentRejected = [...(orderTarget?.conductoresRechazaron || [])];
+      if (!currentRejected.includes(driver.id)) {
+        currentRejected.push(driver.id);
       }
-      return o;
-    }));
-    addNotification('web', '⚠️ Viaje Rechazado por Repartidor', `Motorizado ${driver.nombre} declinó viaje #${orderId}. Motivo: ${motivo}. Reasignando en radar.`);
+
+      const pickupLat = orderTarget?.comercio?.lat || 10.4950;
+      const pickupLng = orderTarget?.comercio?.lng || -66.8480;
+      nextAssignedDriver = findClosestAvailableDriver(pickupLat, pickupLng, currentRejected, prev, allDrivers);
+
+      return prev.map(o => {
+        if (o.id === orderId) {
+          if (nextAssignedDriver) {
+            return {
+              ...o,
+              conductor: undefined,
+              conductorOfrecidoId: nextAssignedDriver.id,
+              tiempoRestanteAceptarConductor: 15, // 15 segundos para el nuevo conductor
+              conductoresRechazaron: currentRejected,
+              estado: 'esperando_repartidor',
+              historialOperaciones: [
+                ...o.historialOperaciones,
+                {
+                  id: 'hist-' + Date.now(),
+                  estado: 'esperando_repartidor',
+                  descripcion: `Motorizado ${driver.nombre} Ramírez rechazó la solicitud (${motivo}). Pedido desaparece de su vista y salta automáticamente al conductor más cercano: ${nextAssignedDriver.nombre} ${nextAssignedDriver.apellido} (${nextAssignedDriver.moto.marca} ${nextAssignedDriver.moto.placa}) con 15s para aceptar.`,
+                  actor: 'conductor',
+                  timestamp: timeStr
+                }
+              ]
+            };
+          } else {
+            return {
+              ...o,
+              conductor: undefined,
+              conductorOfrecidoId: undefined,
+              tiempoRestanteAceptarConductor: 0,
+              conductoresRechazaron: currentRejected,
+              estado: 'esperando_repartidor',
+              historialOperaciones: [
+                ...o.historialOperaciones,
+                {
+                  id: 'hist-' + Date.now(),
+                  estado: 'esperando_repartidor',
+                  descripcion: `Motorizado ${driver.nombre} Ramírez rechazó la solicitud (${motivo}). Pedido desaparece de su vista. No hay más conductores disponibles en la zona.`,
+                  actor: 'conductor',
+                  timestamp: timeStr
+                }
+              ]
+            };
+          }
+        }
+        return o;
+      });
+    });
+
+    if (nextAssignedDriver) {
+      playBellChimeSound('driver');
+    }
+
+    addNotification('conductor', '⚠️ Servicio Descartado', `Has declinado el servicio #${orderId}. El pedido desaparece de tu vista.`);
+    addNotification('web', '⚠️ Viaje Rechazado por Repartidor', `Motorizado ${driver.nombre} declinó viaje #${orderId}. Motivo: ${motivo}. Saltando al siguiente conductor disponible.`);
     addActivityLog({
       usuarioId: driver.id,
       usuarioNombre: `${driver.nombre} ${driver.apellido}`,
       usuarioRol: 'conductor',
       modulo: 'pedidos',
       accion: 'Viaje Rechazado por Motorizado',
-      detalles: `Motorizado rechazó la solicitud para pedido #${orderId}. Motivo indicado: "${motivo}". El pedido vuelve al pool para otros conductores.`,
+      detalles: `Motorizado rechazó la solicitud para pedido #${orderId}. Motivo indicado: "${motivo}". El pedido desaparece de su pantalla y se ofrece al siguiente conductor disponible.`,
       ip: '190.74.150.88 (Digitel 4G)',
       severidad: 'advertencia'
     });
@@ -2499,7 +2718,8 @@ export const DeliveryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       realGpsCoords,
       realGpsError,
       requestPushNotificationPermission,
-      playNotificationSound
+      playNotificationSound,
+      playBellSound: (variant?: 'store' | 'driver') => playBellChimeSound(variant)
     }}>
       {children}
     </DeliveryContext.Provider>
